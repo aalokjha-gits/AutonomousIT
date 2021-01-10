@@ -36,7 +36,24 @@ Resources:
         - Key : Name
           Value : My-CFT-VPC
 
-  InstanceSecurityGroup:
+  MYELBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        VpcId:
+          Ref: myVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ApacheSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
         GroupDescription: Allow http to client host
@@ -53,11 +70,31 @@ Resources:
           CidrIp: 0.0.0.0/0
         SecurityGroupEgress:
         - IpProtocol: tcp
-          FromPort: 0
-          ToPort: 65535
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+  
+  DBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        VpcId:
+          Ref: myVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
           CidrIp: 0.0.0.0/0
 
-  publicSubnet:
+  publicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId:
@@ -67,9 +104,21 @@ Resources:
       AvailabilityZone: "us-east-1a"
       Tags:
         - Key : Name
-          Value : Public Subnet
+          Value : Public Subnet1
 
-  privateSubnet:
+  publicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: myVPC
+      CidrBlock: 174.0.5.80/28
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: "us-east-1c"
+      Tags:
+        - Key : Name
+          Value : Public Subnet 2 
+
+  privateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId:
@@ -78,7 +127,18 @@ Resources:
       AvailabilityZone: "us-east-1b"
       Tags:
         - Key : Name
-          Value : Private Subnet
+          Value : Private Subnet1
+
+  privateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: myVPC
+      CidrBlock: 174.0.6.0/24
+      AvailabilityZone: "us-east-1c"
+      Tags:
+        - Key : Name
+          Value : Private Subnet2
 
   publicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -105,19 +165,35 @@ Resources:
         - Key: Name
           Value: Private RT
 
-  publicRouteTableAssociation:
+  publicRouteTableAssociation1:
       Type: AWS::EC2::SubnetRouteTableAssociation
       Properties:
         SubnetId:
-          Ref: publicSubnet
+          Ref: publicSubnet1
+        RouteTableId:
+          Ref: publicRouteTable
+
+  publicRouteTableAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId:
+          Ref: publicSubnet2
         RouteTableId:
           Ref: publicRouteTable
   
+  privateRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId:
+          Ref: privateSubnet1
+        RouteTableId:
+          Ref: privateRouteTable
+
   privateRouteTableAssociation:
       Type: AWS::EC2::SubnetRouteTableAssociation
       Properties:
         SubnetId:
-          Ref: privateSubnet
+          Ref: privateSubnet2
         RouteTableId:
           Ref: privateRouteTable
 
@@ -140,12 +216,12 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       SubnetId : 
-        Ref: publicSubnet
+        Ref: publicSubnet1
       ImageId: ami-0be2609ba883822ec
       InstanceType: t2.micro
       KeyName: aj
       SecurityGroupIds:
-        - Ref: InstanceSecurityGroup
+        - Ref: ApacheSG
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -158,11 +234,41 @@ Resources:
           sudo cp -r wordpress/* /var/www/html/
           sudo rm -rf wordpress
           sudo rm -rf wordpress-5.1.1.tar.gz
-          sudo chmod -R 755 wp-content/
+          sudo chmod 755 -R wp-content/
           sudo chown -R apache:apache wp-content
-          sudo chmod -R /var/www/html/
+          sudo chmod 777 -R /var/www/html/
           sudo chkconfig httpd on
           sudo service httpd start
           sudo service httpd restart
 
-
+  myDBSubnetGroup: 
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+        DBSubnetGroupName: Mydatabasessubnet
+        DBSubnetGroupDescription: description
+        SubnetIds: 
+          - Ref: privateSubnet1
+          - Ref: privateSubnet2
+        Tags: 
+          - 
+            Key: Name
+            Value: DBSubnetGroup
+      
+    
+  mydatabase:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      DBInstanceIdentifier: sqldatabase
+      DBInstanceClass: db.t2.micro
+      AllocatedStorage: 50
+      DBName: wordpress
+      DBSubnetGroupName:
+        Ref: myDBSubnetGroup
+      Engine: MySQL
+      EngineVersion: 5.7.22
+      MasterUsername: admin
+      MasterUserPassword: wordpress
+      Port: 3306
+      PubliclyAccessible: false
+      VPCSecurityGroups: 
+        - Ref: DBSG
