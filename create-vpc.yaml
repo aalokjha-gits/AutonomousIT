@@ -63,7 +63,9 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: 0.0.0.0/0
+          # CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: 
+            Ref: MYELBSG
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -92,7 +94,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: 
+            Ref: ApacheSG
 
   publicSubnet1:
     Type: AWS::EC2::Subnet
@@ -272,3 +275,31 @@ Resources:
       PubliclyAccessible: false
       VPCSecurityGroups: 
         - Ref: DBSG
+
+  myELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties: 
+      ConnectionDrainingPolicy: 
+        Enabled: true
+        Timeout: 50
+      CrossZone: true
+      HealthCheck: 
+        Target: HTTP:80/healthy.html
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '3'
+        Interval: '10'
+        Timeout: '5'
+      Instances: 
+        - Ref: MyInstance
+      Listeners: 
+         - InstancePort: '80'
+           InstanceProtocol: HTTP
+           LoadBalancerPort: '80'
+           Protocol: HTTP
+      LoadBalancerName: ServerELB
+      Scheme: internet-facing
+      SecurityGroups: 
+        - Ref: MYELBSG
+      Subnets: 
+        - Ref: publicSubnet1
+        - Ref: publicSubnet2
