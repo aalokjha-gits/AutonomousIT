@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template
+
+#Creating The Global Parameters
+Parameters:
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+    Description: Enter t2.micro, m1.small, m1.large. Default is t2.micro
+
+  ImageIdParameter:
+    Type: String
+    Default: ami-a4c7edb2
+    Description: Enter the image id
+  
+  SubnetType:
+    Type: String
+    Description: Enter the type of subnet i.e. Public
+#Conditions Sections
+Conditions:
+      PublicSubnetCondition: !Equals [ !Ref SubnetType, “Public”]
+#Creating all the resources i.e. VPC, Subnets, SecurityGroup, InternetGateway, Route Tables, EC2 Instance
+Resources:       
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 174.0.0.0/16
+      EnableDnsHostnames: 'true'
+      EnableDnsSupport: 'true'
+      InstanceTenancy: default
+      Tags: 
+        - Key : Name
+          Value : My-CFT-VPC
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        VpcId:
+          Ref: myVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  publicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: myVPC
+      CidrBlock: 174.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: "us-east-1a"
+      Tags:
+        - Key : Name
+          Value : Public Subnet
+
+  privateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: myVPC
+      CidrBlock: 174.0.2.0/24
+      AvailabilityZone: "us-east-1b"
+      Tags:
+        - Key : Name
+          Value : Private Subnet
+
+  publicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: myVPC
+      Tags:
+        - Key: Name
+          Value: Public RT
+
+  Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref publicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myInternetGateway
+
+  privateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: myVPC
+      Tags:
+        - Key: Name
+          Value: Private RT
+
+  publicRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId:
+          Ref: publicSubnet
+        RouteTableId:
+          Ref: publicRouteTable
+  
+  privateRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId:
+          Ref: privateSubnet
+        RouteTableId:
+          Ref: privateRouteTable
+
+  myInternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+        - Key: Name
+          Value: my-cft-igw
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: myVPC
+      InternetGatewayId:
+        Ref: myInternetGateway
+
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId : 
+        Ref: publicSubnet
+      ImageId: ami-0be2609ba883822ec
+      InstanceType: t2.micro
+      KeyName: aj
+      SecurityGroupIds:
+        - Ref: InstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install httpd php php-mysql -y
+          cd /var/www/html
+          echo "healthy" > healthy.html
+          wget https://wordpress.org/wordpress-5.1.1.tar.gz
+          sudo tar -xzf wordpress-5.1.1.tar.gz
+          sudo cp -r wordpress/* /var/www/html/
+          sudo rm -rf wordpress
+          sudo rm -rf wordpress-5.1.1.tar.gz
+          sudo chmod -R 755 wp-content/
+          sudo chown -R apache:apache wp-content
+          sudo chmod -R /var/www/html/
+          sudo chkconfig httpd on
+          sudo service httpd start
+          sudo service httpd restart
+
+
