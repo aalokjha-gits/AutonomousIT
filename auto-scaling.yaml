@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template
+
+Parameters:
+  LaunchConfigname:
+    Type: String
+    Default: My Server Launch Config
+    Description: Enter name of your launch configuration
+
+  AMIImageId:
+    Type: String
+    Description: Enter the AMI image id
+
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+    Description: Enter t2.micro, m1.small, m1.large. Default is t2.micro
+
+  KeyPair:
+    Type: String
+    Description: Enter key pair name
+  
+  SecurityGroupName:
+    Type: CommaDelimitedList
+    Description: Enter the security group you want to assign.
+  DeviceNamePath:
+    Type: String
+    Default: /dev/xvda
+    Description: Enter device name from the storage information.
+  EBSVolumeSize:
+    Type: Number
+    Default: 8
+    Description: Enter size of volume from the storage information.
+
+  EBSVolumeType:
+    Type: String
+    Default: gp2
+    Description: Enter type of volume from the storage information.
+
+  LoadBalancerName:
+    Type: String
+    Description: Enter all the loadbalancer you want to assign seperated by comma.
+  
+  SubnetsName:
+    Type: CommaDelimitedList
+    Description: Enter all the public subnets ids you want to assign, seperated by comma.
+
+Resources:
+  myLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties: 
+      AssociatePublicIpAddress: true
+      ImageId: 
+        Ref: AMIImageId
+      InstanceMonitoring: true
+      InstanceType: 
+        Ref: InstanceTypeParameter
+      KeyName: 
+        Ref: KeyPair
+      LaunchConfigurationName: 
+        Ref: LaunchConfigname
+      SecurityGroups: 
+        Ref: SecurityGroupName
+      BlockDeviceMappings: 
+        - DeviceName: 
+            Ref: DeviceNamePath
+          Ebs: 
+            VolumeSize: 
+              Ref: EBSVolumeSize
+            VolumeType: 
+              Ref: EBSVolumeType
+            Encrypted: false
+            DeleteOnTermination: "true"
+    
+  myAutoScalegroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties: 
+        AutoScalingGroupName: MainServerASG
+        Cooldown: 20
+        DesiredCapacity: 1
+        HealthCheckGracePeriod: 20
+        HealthCheckType: EC2
+        LaunchConfigurationName:
+          Ref: myLaunchConfig
+        LoadBalancerNames: 
+          - Ref: LoadBalancerName
+        MaxSize: 3
+        MetricsCollection: 
+          - Granularity: "1Minute"
+            Metrics: 
+              - "GroupMinSize"
+              - "GroupMaxSize"
+              - "GroupInServiceInstances"
+              - "GroupTotalInstances"
+        MinSize: 1
+        NewInstancesProtectedFromScaleIn: true
+        VPCZoneIdentifier: 
+          Ref: SubnetsName
+                  
