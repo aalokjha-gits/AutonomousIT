@@ -269,6 +269,7 @@ Resources:
         Ref: myDBSubnetGroup
       Engine: MySQL
       EngineVersion: 5.7.22
+      MultiAZ: true
       MasterUsername: admin
       MasterUserPassword: wordpress
       Port: 3306
