@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template
+Description: Stack for RightSizing, Auto Scaling and maintaining availability in servers.
 
 Parameters:
   LaunchConfigname:
@@ -21,16 +21,18 @@ Parameters:
     Description: Enter t2.micro, m1.small, m1.large. Default is t2.micro
 
   KeyPair:
-    Type: String
-    Description: Enter key pair name
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Select the key pair.
   
   SecurityGroupName:
-    Type: CommaDelimitedList
+    Type: AWS::EC2::SecurityGroup::GroupName
     Description: Enter the security group you want to assign.
+
   DeviceNamePath:
     Type: String
     Default: /dev/xvda
     Description: Enter device name from the storage information.
+
   EBSVolumeSize:
     Type: Number
     Default: 8
@@ -46,10 +48,11 @@ Parameters:
     Description: Enter all the loadbalancer you want to assign seperated by comma.
   
   SubnetsName:
-    Type: CommaDelimitedList
+    Type: List<AWS::EC2::Subnet::Id>
     Description: Enter all the public subnets ids you want to assign, seperated by comma.
 
 Resources:
+#Creating Launch Configuration
   myLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties: 
@@ -75,7 +78,8 @@ Resources:
               Ref: EBSVolumeType
             Encrypted: false
             DeleteOnTermination: "true"
-    
+
+#Creating Auto Scaling Group
   myAutoScalegroup:
       Type: AWS::AutoScaling::AutoScalingGroup
       Properties: 
@@ -100,4 +104,18 @@ Resources:
         NewInstancesProtectedFromScaleIn: true
         VPCZoneIdentifier: 
           Ref: SubnetsName
-                  
+
+#Assigning Policy to ASG
+  myASGPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AutoScalingGroupName: 
+        Ref: myAutoScalegroup
+      EstimatedInstanceWarmup: 20
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration: 
+          DisableScaleIn: false
+          PredefinedMetricSpecification: 
+            PredefinedMetricType: ASGAverageCPUUtilization
+          TargetValue: 70
+                    

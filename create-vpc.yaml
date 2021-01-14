@@ -1,41 +1,16 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template
+Description: Stack for all the services required for Wordpress Application like LoadBalancer, Security Group, VPC, Subnets, Apacher-php server, Database Server.
 
 #Creating The Global Parameters
 Parameters:
-  InstanceTypeParameter:
-    Type: String
-    Default: t2.micro
-    AllowedValues:
-      - t2.micro
-      - m1.small
-      - m1.large
-    Description: Enter t2.micro, m1.small, m1.large. Default is t2.micro
+  KeyPairSelector:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Select the key pair.
 
-  ImageIdParameter:
-    Type: String
-    Default: ami-a4c7edb2
-    Description: Enter the image id
-  
-  SubnetType:
-    Type: String
-    Description: Enter the type of subnet i.e. Public
-#Conditions Sections
-Conditions:
-      PublicSubnetCondition: !Equals [ !Ref SubnetType, “Public”]
-#Creating all the resources i.e. VPC, Subnets, SecurityGroup, InternetGateway, Route Tables, EC2 Instance
-Resources:       
-  myVPC:
-    Type: AWS::EC2::VPC
-    Properties: 
-      CidrBlock: 174.0.0.0/16
-      EnableDnsHostnames: 'true'
-      EnableDnsSupport: 'true'
-      InstanceTenancy: default
-      Tags: 
-        - Key : Name
-          Value : My-CFT-VPC
-
+#Creating all the resources i.e. VPC, Subnets, SecurityGroup, InternetGateway, Route Tables, Routes, EC2 Instance, Load Balancer.
+Resources:
+#Creating Security Groups for LB, DB, Instance
+#MYELBSG Refers to security group for Load Balancer
   MYELBSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -52,7 +27,7 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-
+#ApacheSg Refers to security group for Instance
   ApacheSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -63,7 +38,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          # CidrIp: 0.0.0.0/0
           SourceSecurityGroupId: 
             Ref: MYELBSG
         - IpProtocol: tcp
@@ -83,7 +57,7 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           CidrIp: 0.0.0.0/0
-  
+#DBSG Refers to security group for Databases
   DBSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -97,6 +71,19 @@ Resources:
           SourceSecurityGroupId: 
             Ref: ApacheSG
 
+#Creating the VPC       
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 174.0.0.0/16
+      EnableDnsHostnames: 'true'
+      EnableDnsSupport: 'true'
+      InstanceTenancy: default
+      Tags: 
+        - Key : Name
+          Value : My-CFT-VPC
+
+#Creating the Public and private subnets for Multi-Availability Zone
   publicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -151,7 +138,7 @@ Resources:
       Tags:
         - Key: Name
           Value: Public RT
-
+#Creating Routes and RouteTable with subnet associations
   Route:
     Type: AWS::EC2::Route
     Properties:
@@ -200,6 +187,7 @@ Resources:
         RouteTableId:
           Ref: privateRouteTable
 
+#Creating InternetGateway
   myInternetGateway:
       Type: AWS::EC2::InternetGateway
       Properties:
@@ -215,6 +203,7 @@ Resources:
       InternetGatewayId:
         Ref: myInternetGateway
 
+#Creating EC2 instance and configuring Apache, PHP server
   MyInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -222,7 +211,7 @@ Resources:
         Ref: publicSubnet1
       ImageId: ami-0be2609ba883822ec
       InstanceType: t2.micro
-      KeyName: aj
+      KeyName: KeyPairSelector
       SecurityGroupIds:
         - Ref: ApacheSG
       UserData:
@@ -244,6 +233,7 @@ Resources:
           sudo service httpd start
           sudo service httpd restart
 
+#Creating Subnet Group for database
   myDBSubnetGroup: 
     Type: AWS::RDS::DBSubnetGroup
     Properties: 
@@ -257,7 +247,7 @@ Resources:
             Key: Name
             Value: DBSubnetGroup
       
-    
+#Creating database  
   mydatabase:
     Type: AWS::RDS::DBInstance
     Properties: 
@@ -277,6 +267,7 @@ Resources:
       VPCSecurityGroups: 
         - Ref: DBSG
 
+#Creating Load balancer
   myELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties: 
