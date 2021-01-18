@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Stack for RightSizing, Auto Scaling and maintaining availability in servers.
+Description: Stack for RightSizing, Auto Scaling and maintaining availability in servers. Remember to create the AMI image of the EC2 instance from the console before executing this stack.
 
 Parameters:
   LaunchConfigname:
